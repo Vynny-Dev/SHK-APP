@@ -1,0 +1,20 @@
+{
+  "name": "shekinah-projeto-ao-primeiro-amor",
+  "version": "1.0.0",
+  "description": "Aplicativo cristão completo do Primeiro Amor: Devocional Diário, Quarto Secreto com Áudio Ambiente, Busca Bíblica, Relógio de Jejum, Mural de Clamor e Painel Administrativo Responsivo.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "shekinah",
+    "cristao",
+    "devocional",
+    "primeiro-amor"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
