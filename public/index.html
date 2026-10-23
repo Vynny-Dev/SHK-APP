@@ -66,7 +66,6 @@
 
       // --- Helpers ---
 
-      // Calculate user level from points (mirrors D() from the bundle)
       function calcLevel(points) {
         points = points || 0;
         if (points >= 1200) return { level: 5, name: 'Apóstolo do Primeiro Amor', badge: '🔥' };
@@ -76,7 +75,6 @@
         return               { level: 1, name: 'Buscador da Presença',              badge: '🌱' };
       }
 
-      // Read current logged-in user from localStorage
       function getCurrentUser() {
         try {
           var raw = localStorage.getItem('shekinah_current_user');
@@ -84,98 +82,90 @@
         } catch(e) { return null; }
       }
 
-      // --- IDs to avoid duplicate injections ---
-      var LEVEL_BADGE_ID = 'shk-level-badge';
+      var LEVEL_BADGE_ID   = 'shk-level-badge';
       var VISITOR_BADGE_ID = 'shk-visitor-badge';
+
+      // Keep track of the last known login state to detect changes
+      var _lastUserId = undefined;
+
+      // Remove ALL our injected badges (header + chat)
+      function cleanupInjections() {
+        var lvlBadge = document.getElementById(LEVEL_BADGE_ID);
+        if (lvlBadge) lvlBadge.parentElement && lvlBadge.parentElement.removeChild(lvlBadge);
+
+        var visBadge = document.getElementById(VISITOR_BADGE_ID);
+        if (visBadge) visBadge.parentElement && visBadge.parentElement.removeChild(visBadge);
+
+        // Restore hidden pills in header
+        var pills = document.querySelectorAll('header [class*="rounded-full"]');
+        for (var p = 0; p < pills.length; p++) {
+          pills[p].style.display = '';
+        }
+
+        // Remove chat masking flags so rows get re-processed
+        var masked = document.querySelectorAll('[data-shk-masked]');
+        for (var m = 0; m < masked.length; m++) {
+          masked[m].removeAttribute('data-shk-masked');
+        }
+
+        // Remove blur from any chat avatars / names previously blurred
+        var blurred = document.querySelectorAll('[data-shk-blurred]');
+        for (var b = 0; b < blurred.length; b++) {
+          blurred[b].style.filter = '';
+          blurred[b].style.userSelect = '';
+          blurred[b].removeAttribute('data-shk-blurred');
+        }
+
+        // Restore hidden age/title spans
+        var hidden = document.querySelectorAll('[data-shk-hidden]');
+        for (var h = 0; h < hidden.length; h++) {
+          hidden[h].style.display = '';
+          hidden[h].removeAttribute('data-shk-hidden');
+        }
+      }
 
       // ------------------------------------------------------------------
       // 1. INJECT LEVEL BADGE next to the points counter in the header
       // ------------------------------------------------------------------
       function injectLevelBadge() {
-        if (document.getElementById(LEVEL_BADGE_ID)) return; // already injected
-
         var user = getCurrentUser();
 
-        // Find the points badge — it contains a span with " pts" text
+        // Already have the right badge?
+        if (user  && document.getElementById(LEVEL_BADGE_ID))   return;
+        if (!user && document.getElementById(VISITOR_BADGE_ID)) return;
+
+        // Find the pts span
         var allSpans = document.querySelectorAll('header span');
         var ptsSpan = null;
         for (var i = 0; i < allSpans.length; i++) {
-          if (allSpans[i].textContent.trim().endsWith(' pts') || allSpans[i].textContent.trim().endsWith('pts')) {
-            ptsSpan = allSpans[i];
-            break;
-          }
+          var txt = allSpans[i].textContent.trim();
+          if (txt.endsWith(' pts') || txt === 'pts') { ptsSpan = allSpans[i]; break; }
         }
+        if (!ptsSpan) return;
 
-        if (!ptsSpan) return; // header not rendered yet
-
-        // Walk up to the pill container (parent of ptsSpan parent)
-        var pillContainer = ptsSpan.closest('header > div > div');
-        if (!pillContainer) {
-          pillContainer = ptsSpan.parentElement && ptsSpan.parentElement.parentElement;
-        }
-        if (!pillContainer) return;
+        var ptsPill = ptsSpan.closest('[class*="rounded-full"]');
+        if (!ptsPill || !ptsPill.parentElement) return;
 
         if (user) {
-          // ---- Logged in: add ⭐ Nível X badge ----
           var lvl = calcLevel(user.points || 0);
           var badge = document.createElement('div');
           badge.id = LEVEL_BADGE_ID;
-          badge.style.cssText = [
-            'display:inline-flex',
-            'align-items:center',
-            'gap:3px',
-            'padding:2px 10px',
-            'border-radius:9999px',
-            'background:rgba(88,28,135,0.5)',
-            'border:1px solid rgba(192,132,252,0.5)',
-            'font-size:11px',
-            'font-weight:900',
-            'color:#e9d5ff',
-            'box-shadow:0 0 14px rgba(168,85,247,0.35)',
-            'cursor:default',
-            'white-space:nowrap'
-          ].join(';');
+          badge.style.cssText = 'display:inline-flex;align-items:center;gap:3px;padding:2px 10px;border-radius:9999px;background:rgba(88,28,135,0.5);border:1px solid rgba(192,132,252,0.5);font-size:11px;font-weight:900;color:#e9d5ff;box-shadow:0 0 14px rgba(168,85,247,0.35);cursor:default;white-space:nowrap';
           badge.title = lvl.name;
-          badge.innerHTML = '<span style="font-size:12px">' + lvl.badge + '</span>'
-                          + '<span>Nível ' + lvl.level + '</span>';
-
-          // Insert after the pts pill
-          var ptsPill = ptsSpan.closest('[class*="rounded-full"]');
-          if (ptsPill && ptsPill.parentElement) {
-            ptsPill.parentElement.insertBefore(badge, ptsPill.nextSibling);
-          } else {
-            pillContainer.appendChild(badge);
-          }
+          badge.innerHTML = '<span style="font-size:12px">' + lvl.badge + '</span><span>Nível ' + lvl.level + '</span>';
+          ptsPill.parentElement.insertBefore(badge, ptsPill.nextSibling);
 
         } else {
-          // ---- Not logged in: add Modo Visitante indicator ----
-          if (document.getElementById(VISITOR_BADGE_ID)) return;
           var vis = document.createElement('div');
           vis.id = VISITOR_BADGE_ID;
-          vis.style.cssText = [
-            'display:inline-flex',
-            'align-items:center',
-            'gap:4px',
-            'padding:2px 10px',
-            'border-radius:9999px',
-            'background:rgba(255,255,255,0.05)',
-            'border:1px solid rgba(255,255,255,0.1)',
-            'font-size:10px',
-            'color:#a197b8'
-          ].join(';');
-          vis.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:rgba(251,191,36,0.6);display:inline-block"></span>'
-                        + '<span>Modo Visitante</span>';
-          var ptsPill2 = ptsSpan.closest('[class*="rounded-full"]');
-          if (ptsPill2 && ptsPill2.parentElement) {
-            ptsPill2.parentElement.insertBefore(vis, ptsPill2.nextSibling);
-          } else {
-            pillContainer.appendChild(vis);
-          }
+          vis.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:9999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);font-size:10px;color:#a197b8';
+          vis.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:rgba(251,191,36,0.6);display:inline-block"></span><span>Modo Visitante</span>';
+          ptsPill.parentElement.insertBefore(vis, ptsPill.nextSibling);
 
-          // ---- Also hide streak / pts pills for visitor ----
-          var pills = ptsPill2 && ptsPill2.parentElement ? ptsPill2.parentElement.querySelectorAll('[class*="rounded-full"]') : [];
+          // Hide streak + pts pills for visitors
+          var pills = ptsPill.parentElement.querySelectorAll('[class*="rounded-full"]');
           for (var p = 0; p < pills.length; p++) {
-            if (pills[p].id !== VISITOR_BADGE_ID && pills[p].id !== LEVEL_BADGE_ID) {
+            if (pills[p].id !== VISITOR_BADGE_ID) {
               pills[p].style.display = 'none';
             }
           }
@@ -183,87 +173,85 @@
       }
 
       // ------------------------------------------------------------------
-      // 2. MASK CHAT MEMBER INFO for visitors (non-logged-in users)
+      // 2. MASK CHAT MEMBER INFO for visitors
       // ------------------------------------------------------------------
       function maskChatForVisitor() {
         var user = getCurrentUser();
-        if (user) return; // logged in — show everything
+        if (user) return;
 
-        // Find all chat message rows
-        // Each message is a flex row with an img or avatar div + a content div
         var chatArea = document.querySelector('[class*="overflow-y-auto"][class*="space-y"]');
         if (!chatArea) return;
 
         var rows = chatArea.children;
         for (var r = 0; r < rows.length; r++) {
           var row = rows[r];
-          if (row.getAttribute('data-shk-masked')) continue; // already masked
+          if (row.getAttribute('data-shk-masked')) continue;
 
-          // Find avatar button / img
           var avatarBtn = row.querySelector('button');
           if (avatarBtn) {
             var img = avatarBtn.querySelector('img');
-            if (img) {
+            if (img && !img.getAttribute('data-shk-blurred')) {
               img.style.filter = 'blur(8px)';
-              img.style.pointerEvents = 'none';
+              img.setAttribute('data-shk-blurred', '1');
             }
-            var initials = avatarBtn.querySelector('div');
-            if (initials) {
-              initials.style.filter = 'blur(8px)';
+            var initDiv = avatarBtn.querySelector('div');
+            if (initDiv && !initDiv.getAttribute('data-shk-blurred')) {
+              initDiv.style.filter = 'blur(8px)';
+              initDiv.setAttribute('data-shk-blurred', '1');
             }
-            avatarBtn.title = 'Faça login para ver os membros';
           }
 
-          // Find sender name — first bold span in the content area
           var contentDiv = row.querySelector('[class*="rounded-2xl"][class*="p-3"]');
           if (contentDiv) {
             var nameSpan = contentDiv.querySelector('span[class*="font-black"]');
-            if (nameSpan) {
+            if (nameSpan && !nameSpan.getAttribute('data-shk-blurred')) {
               nameSpan.style.filter = 'blur(5px)';
               nameSpan.style.userSelect = 'none';
-              nameSpan.title = 'Faça login para ver';
+              nameSpan.setAttribute('data-shk-blurred', '1');
             }
-            // Hide age pill
             var agePills = contentDiv.querySelectorAll('span[class*="rounded-full"]');
             for (var ap = 0; ap < agePills.length; ap++) {
-              agePills[ap].style.display = 'none';
+              if (!agePills[ap].getAttribute('data-shk-hidden')) {
+                agePills[ap].style.display = 'none';
+                agePills[ap].setAttribute('data-shk-hidden', '1');
+              }
             }
-            // Hide title tag (role badge)
             var titleSpans = contentDiv.querySelectorAll('span[class*="uppercase"]');
             for (var ts = 0; ts < titleSpans.length; ts++) {
-              titleSpans[ts].style.display = 'none';
+              if (!titleSpans[ts].getAttribute('data-shk-hidden')) {
+                titleSpans[ts].style.display = 'none';
+                titleSpans[ts].setAttribute('data-shk-hidden', '1');
+              }
             }
           }
-
           row.setAttribute('data-shk-masked', '1');
         }
       }
 
       // ------------------------------------------------------------------
-      // 3. RUN + OBSERVE DOM for SPA re-renders
+      // 3. MAIN LOOP — detect login/logout state changes
       // ------------------------------------------------------------------
       function run() {
+        var user = getCurrentUser();
+        var userId = user ? user.id : null;
+
+        // Detect login/logout transition → clean up and re-inject
+        if (_lastUserId !== undefined && _lastUserId !== userId) {
+          cleanupInjections();
+        }
+        _lastUserId = userId;
+
         injectLevelBadge();
         maskChatForVisitor();
       }
 
-      // Run once DOM is ready
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() { setTimeout(run, 800); });
       } else {
         setTimeout(run, 800);
       }
 
-      // Re-run whenever the React app updates the DOM
-      var observer = new MutationObserver(function() {
-        // Re-check if our badge was removed by React re-render
-        if (!document.getElementById(LEVEL_BADGE_ID) && !document.getElementById(VISITOR_BADGE_ID)) {
-          run();
-        }
-        // Always re-check chat masking on any mutation
-        maskChatForVisitor();
-      });
-
+      var observer = new MutationObserver(function() { run(); });
       observer.observe(document.body, { childList: true, subtree: true });
 
     })();
